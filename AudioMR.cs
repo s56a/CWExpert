@@ -174,27 +174,47 @@ namespace CWExpert
         {
             try
             {
+                Debug.WriteLine("=== StartAudio (MR) Diagnostics ===");
+                Debug.WriteLine("Parameters: BlockSize=" + block_size + ", SampleRate=" + sample_rate + 
+                              ", Channels=" + num_channels + ", Latency=" + latency_ms + "ms");
+                Debug.WriteLine("Host API Index: " + host_api_index);
+                Debug.WriteLine("Input Device Index: " + input_dev_index + ", Output Device Index: " + output_dev_index);
+                
                 int in_dev = PA19.PA_HostApiDeviceIndexToDeviceIndex(host_api_index, input_dev_index);
                 int out_dev = PA19.PA_HostApiDeviceIndexToDeviceIndex(host_api_index, output_dev_index);
+                
+                Debug.WriteLine("Resolved Device IDs: Input=" + in_dev + ", Output=" + out_dev);
+                
+                // Log device information
+                try
+                {
+                    PA19.PaDeviceInfo inDevInfo = PA19.PA_GetDeviceInfo(in_dev);
+                    Debug.WriteLine("Input Device: " + inDevInfo.name + " (Max Channels: " + inDevInfo.maxInputChannels + ")");
+                    
+                    PA19.PaDeviceInfo outDevInfo = PA19.PA_GetDeviceInfo(out_dev);
+                    Debug.WriteLine("Output Device: " + outDevInfo.name + " (Max Channels: " + outDevInfo.maxOutputChannels + ")");
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("Warning: Could not retrieve device info: " + ex.Message);
+                }
 
                 PA19.PaStreamParameters inparam = new PA19.PaStreamParameters();
                 PA19.PaStreamParameters outparam = new PA19.PaStreamParameters();
 
                 inparam.device = in_dev;
                 inparam.channelCount = num_channels;
-
                 inparam.sampleFormat = PA19.paInt16 | PA19.paNonInterleaved;
-
                 inparam.suggestedLatency = ((float)latency_ms / 1000);
 
                 outparam.device = out_dev;
                 outparam.channelCount = num_channels;
-
                 outparam.sampleFormat = PA19.paInt16 | PA19.paNonInterleaved;
                 outparam.suggestedLatency = ((float)latency_ms / 1000);
 
                 if (host_api_index == PA19.PA_HostApiTypeIdToHostApiIndex(PA19.PaHostApiTypeId.paWASAPI))
                 {
+                    Debug.WriteLine("Using WASAPI host API - configuring stream info");
                     PA19.PaWasapiStreamInfo stream_info = new PA19.PaWasapiStreamInfo();
                     stream_info.hostApiType = PA19.PaHostApiTypeId.paWASAPI;
                     stream_info.version = 1;
@@ -203,6 +223,7 @@ namespace CWExpert
                     outparam.hostApiSpecificStreamInfo = &stream_info;
                 }
 
+                Debug.WriteLine("Opening audio stream (callback #" + callback_num + ")...");
                 int error = 0;
                 if (callback_num == 0)
                     error = PA19.PA_OpenStream(out stream1, &inparam, &outparam, sample_rate, block_size, 0, callback, 0, 0);
@@ -211,11 +232,34 @@ namespace CWExpert
 
                 if (error != 0)
                 {
-                    MessageBox.Show(PA19.PA_GetErrorText(error), "PortAudio Error",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    string errorText = PA19.PA_GetErrorText(error);
+                    Debug.WriteLine("PA_OpenStream failed with error: " + error + " (" + errorText + ")");
+                    
+                    // Try to get host error info
+                    try
+                    {
+                        PA19.PaHostErrorInfo hostError = PA19.PA_GetLastHostErrorInfo();
+                        Debug.WriteLine("Host API Error - Type: " + hostError.hostApiType + 
+                                      ", Code: " + hostError.errorCode + 
+                                      ", Text: " + hostError.errorText);
+                    }
+                    catch
+                    {
+                        Debug.WriteLine("Could not retrieve host error info");
+                    }
+                    
+                    MessageBox.Show("Failed to open audio stream!\n\n" +
+                                  "Error Code: " + error + "\n" +
+                                  "Error: " + errorText + "\n\n" +
+                                  "Check Debug output for detailed diagnostics.",
+                                  "PortAudio Error",
+                                  MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return false;
                 }
 
+                Debug.WriteLine("Audio stream opened successfully");
+                Debug.WriteLine("Starting audio stream...");
+                
                 if (callback_num == 0)
                     error = PA19.PA_StartStream(stream1);
                 else
@@ -223,16 +267,30 @@ namespace CWExpert
 
                 if (error != 0)
                 {
-                    MessageBox.Show(PA19.PA_GetErrorText(error), "PortAudio Error",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    string errorText = PA19.PA_GetErrorText(error);
+                    Debug.WriteLine("PA_StartStream failed with error: " + error + " (" + errorText + ")");
+                    
+                    MessageBox.Show("Failed to start audio stream!\n\n" +
+                                  "Error Code: " + error + "\n" +
+                                  "Error: " + errorText + "\n\n" +
+                                  "Check Debug output for detailed diagnostics.",
+                                  "PortAudio Error",
+                                  MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return false;
                 }
-                //               Debug.WriteLine(block_size);
+                
+                Debug.WriteLine("Audio stream started successfully!");
                 return true;
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error in StartAudio function!\n" + ex.ToString());
+                Debug.WriteLine("Exception in StartAudio: " + ex.ToString());
+                MessageBox.Show("Error in StartAudio function!\n\n" + 
+                              "Exception: " + ex.GetType().Name + "\n" +
+                              "Message: " + ex.Message + "\n\n" +
+                              "See Debug output for stack trace.",
+                              "Audio Start Error",
+                              MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
         }

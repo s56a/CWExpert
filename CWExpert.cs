@@ -160,7 +160,155 @@ namespace CWExpert
             DB.AppDataPath = Application.StartupPath;
             DB.Init();
             Audio.MainForm = this;
-            PA19.PA_Initialize();
+            
+            // Initialize PortAudio with comprehensive error handling
+            try
+            {
+                Debug.WriteLine("=== PortAudio Initialization Diagnostics ===");
+                Debug.WriteLine("Application Path: " + Application.StartupPath);
+                Debug.WriteLine("OS Version: " + Environment.OSVersion.ToString());
+                Debug.WriteLine("OS Platform: " + Environment.OSVersion.Platform.ToString());
+                Debug.WriteLine("Processor Architecture: " + (IntPtr.Size == 8 ? "64-bit" : "32-bit"));
+                Debug.WriteLine("CLR Version: " + Environment.Version.ToString());
+                
+                // Check if PA19.dll exists
+                string pa19Path = System.IO.Path.Combine(Application.StartupPath, "PA19.dll");
+                Debug.WriteLine("Checking for PA19.dll at: " + pa19Path);
+                
+                if (System.IO.File.Exists(pa19Path))
+                {
+                    Debug.WriteLine("PA19.dll found - Size: " + new System.IO.FileInfo(pa19Path).Length + " bytes");
+                }
+                else
+                {
+                    string errorMsg = "CRITICAL: PA19.dll not found at expected location!\n\n" +
+                                    "Expected: " + pa19Path + "\n\n" +
+                                    "PortAudio library is required for audio functionality.\n" +
+                                    "Please ensure PA19.dll is in the application directory.";
+                    Debug.WriteLine(errorMsg);
+                    MessageBox.Show(errorMsg, "PA19.dll Missing", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    throw new System.IO.FileNotFoundException("PA19.dll not found", pa19Path);
+                }
+                
+                Debug.WriteLine("Attempting PA19.PA_Initialize()...");
+                int initResult = PA19.PA_Initialize();
+                
+                if (initResult != 0)
+                {
+                    string errorText = "Unknown error";
+                    try
+                    {
+                        errorText = PA19.PA_GetErrorText(initResult);
+                    }
+                    catch (Exception ex)
+                    {
+                        errorText = "Unable to get error text: " + ex.Message;
+                    }
+                    
+                    string errorMsg = "PortAudio initialization failed!\n\n" +
+                                    "Error Code: " + initResult + "\n" +
+                                    "Error Message: " + errorText + "\n\n" +
+                                    "ARCHITECTURE COMPATIBILITY CHECK:\n" +
+                                    "- Application is running as " + (IntPtr.Size == 8 ? "64-bit" : "32-bit") + " process\n" +
+                                    "- PA19.dll must match application architecture\n" +
+                                    "- For Windows 11 ARM64, you need an ARM64-compatible or x64 PortAudio DLL\n" +
+                                    "- Current PA19.dll may be incompatible with your platform\n\n" +
+                                    "Please check:\n" +
+                                    "1. DLL architecture matches application (use 'dumpbin /headers PA19.dll' or Dependency Walker)\n" +
+                                    "2. All PortAudio dependencies are present\n" +
+                                    "3. For ARM64 systems, ensure proper emulation or native ARM64 DLL";
+                    
+                    Debug.WriteLine(errorMsg);
+                    MessageBox.Show(errorMsg, "PortAudio Initialization Failed", 
+                                  MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                else
+                {
+                    Debug.WriteLine("PA19.PA_Initialize() succeeded!");
+                    
+                    // Log PortAudio version info
+                    try
+                    {
+                        int version = PA19.PA_GetVersion();
+                        string versionText = PA19.PA_GetVersionText();
+                        Debug.WriteLine("PortAudio Version: " + version + " (" + versionText + ")");
+                        
+                        // Log available host APIs
+                        int hostCount = PA19.PA_GetHostApiCount();
+                        Debug.WriteLine("Available Host APIs: " + hostCount);
+                        for (int i = 0; i < hostCount; i++)
+                        {
+                            try
+                            {
+                                PA19.PaHostApiInfo hostInfo = PA19.PA_GetHostApiInfo(i);
+                                Debug.WriteLine("  Host API " + i + ": " + hostInfo.name + 
+                                              " (Devices: " + hostInfo.deviceCount + ")");
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine("  Host API " + i + ": Error reading info - " + ex.Message);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine("Warning: Could not retrieve PortAudio info: " + ex.Message);
+                    }
+                }
+            }
+            catch (DllNotFoundException dllEx)
+            {
+                string errorMsg = "PortAudio DLL Loading Failed!\n\n" +
+                                "Error: " + dllEx.Message + "\n\n" +
+                                "This typically means:\n" +
+                                "1. PA19.dll is not in the application directory\n" +
+                                "2. PA19.dll architecture doesn't match the application\n" +
+                                "3. PA19.dll dependencies (like PortAudio.dll) are missing\n\n" +
+                                "ARCHITECTURE MISMATCH DIAGNOSIS:\n" +
+                                "- Your application is running as " + (IntPtr.Size == 8 ? "64-bit" : "32-bit") + "\n" +
+                                "- PA19.dll must be the same architecture\n" +
+                                "- On Windows 11 ARM64:\n" +
+                                "  * Native ARM64 DLLs work best\n" +
+                                "  * x64 DLLs work via emulation\n" +
+                                "  * x86 (32-bit) DLLs have limited support\n\n" +
+                                "Current PA19.dll is 32-bit (x86). For ARM64, you need:\n" +
+                                "- ARM64 native PortAudio build, or\n" +
+                                "- x64 PortAudio build (will run under emulation)";
+                
+                Debug.WriteLine(errorMsg);
+                MessageBox.Show(errorMsg, "DLL Loading Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            catch (BadImageFormatException imgEx)
+            {
+                string errorMsg = "DLL Architecture Mismatch!\n\n" +
+                                "Error: " + imgEx.Message + "\n\n" +
+                                "PROBLEM: PA19.dll architecture doesn't match this application.\n\n" +
+                                "Your application: " + (IntPtr.Size == 8 ? "64-bit" : "32-bit") + " process\n" +
+                                "PA19.dll: Incompatible architecture\n\n" +
+                                "SOLUTION FOR WINDOWS 11 ARM64:\n" +
+                                "The provided PA19.dll is 32-bit (x86), which has limited\n" +
+                                "compatibility on ARM64 systems.\n\n" +
+                                "You need to:\n" +
+                                "1. Rebuild the application as x64 (preferred for ARM64), or\n" +
+                                "2. Obtain an x64 version of PA19.dll/PortAudio, or\n" +
+                                "3. Obtain an ARM64 native version of PortAudio\n\n" +
+                                "Recommended: Use x64 build with x64 PortAudio DLL for best\n" +
+                                "compatibility on Windows 11 ARM64.";
+                
+                Debug.WriteLine(errorMsg);
+                MessageBox.Show(errorMsg, "Architecture Mismatch", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            catch (Exception ex)
+            {
+                string errorMsg = "Unexpected error during PortAudio initialization!\n\n" +
+                                "Error Type: " + ex.GetType().Name + "\n" +
+                                "Error Message: " + ex.Message + "\n\n" +
+                                "Stack Trace:\n" + ex.StackTrace;
+                
+                Debug.WriteLine(errorMsg);
+                MessageBox.Show(errorMsg, "Initialization Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            
             SetupForm = new Setup(this);
             cwDecoder = new CWDecode(this);
             booting = false;
