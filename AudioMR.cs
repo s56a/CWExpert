@@ -95,6 +95,82 @@ namespace CWExpert
 
         #endregion
 
+        private static bool paInitialized = false;
+
+        #region PortAudio Initialization/Termination
+
+        /// <summary>
+        /// Initialize the PortAudio library. Must be called before any other PortAudio functions.
+        /// </summary>
+        /// <returns>True if initialization was successful, false otherwise</returns>
+        public static bool Initialize()
+        {
+            if (paInitialized)
+                return true;
+
+            try
+            {
+                int error = PA19.PA_Initialize();
+                if (error != 0)
+                {
+                    MessageBox.Show(PA19.PA_GetErrorText(error), "PortAudio Initialization Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return false;
+                }
+
+                paInitialized = true;
+                Debug.WriteLine("PortAudio initialized successfully");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Failed to initialize PortAudio!\n" + ex.ToString(),
+                    "PortAudio Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Terminate the PortAudio library. Should be called when done using audio.
+        /// </summary>
+        public static void Terminate()
+        {
+            if (!paInitialized)
+                return;
+
+            try
+            {
+                if (stream1 != null)
+                {
+                    PA19.PA_AbortStream(stream1);
+                    PA19.PA_CloseStream(stream1);
+                    stream1 = null;
+                }
+
+                if (stream2 != null)
+                {
+                    PA19.PA_AbortStream(stream2);
+                    PA19.PA_CloseStream(stream2);
+                    stream2 = null;
+                }
+
+                int error = PA19.PA_Terminate();
+                if (error != 0)
+                {
+                    Debug.WriteLine("PortAudio Terminate error: " + PA19.PA_GetErrorText(error));
+                }
+
+                paInitialized = false;
+                Debug.WriteLine("PortAudio terminated");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine("Error terminating PortAudio: " + ex.ToString());
+            }
+        }
+
+        #endregion
+
         #region misc function
 
         unsafe public static int Callback(void* input, void* output, int frameCount,
@@ -154,12 +230,16 @@ namespace CWExpert
 
         public static bool Start()
         {
-            bool retval = false;
             try
             {
-                retval = StartAudio(ref callback, (uint)block_size, sample_rate,
+                if (!paInitialized && !Initialize())
+                {
+                    return false;
+                }
+
+                bool retval = StartAudio(ref callback, (uint)block_size, sample_rate,
                     host, input_dev, output_dev, num_channels, 0, latency);
-                return true;
+                return retval;
             }
             catch (Exception ex)
             {
@@ -263,13 +343,17 @@ namespace CWExpert
         public static ArrayList GetPAOutputDevices(int hostIndex)
         {
             ArrayList a = new ArrayList();
+            
+            if (!paInitialized && !Initialize())
+                return a;
+            
             PA19.PaHostApiInfo hostInfo = PA19.PA_GetHostApiInfo(hostIndex);
             for (int i = 0; i < hostInfo.deviceCount; i++)
             {
                 int devIndex = PA19.PA_HostApiDeviceIndexToDeviceIndex(hostIndex, i);
                 PA19.PaDeviceInfo devInfo = PA19.PA_GetDeviceInfo(devIndex);
                 if (devInfo.maxOutputChannels > 0)
-                    a.Add(new PADeviceInfo(devInfo.name, i)/* + " - " + devIndex*/);
+                    a.Add(new PADeviceInfo(devInfo.name, i));
             }
             return a;
         }
@@ -277,6 +361,10 @@ namespace CWExpert
         public static ArrayList GetPAHosts() // returns a text list of driver types
         {
             ArrayList a = new ArrayList();
+            
+            if (!paInitialized && !Initialize())
+                return a;
+            
             for (int i = 0; i < PA19.PA_GetHostApiCount(); i++)
             {
                 PA19.PaHostApiInfo info = PA19.PA_GetHostApiInfo(i);

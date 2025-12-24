@@ -1,4 +1,3 @@
-
 //=================================================================
 // CWExpert.cs
 //=================================================================
@@ -168,7 +167,10 @@ namespace CWExpert
             cwDecoder.hamming = SetupForm.chkHamming.Checked;
             cwDecoder.medijan = SetupForm.chkMedian.Checked;
             cwDecoder.logmagn = SetupForm.chkLogdB.Checked;
-       }
+
+            // Force initial state sync
+            Debug.WriteLine("Initial SWL mode: " + cwDecoder.rx_only);
+        }
 
        #endregion
 
@@ -530,7 +532,7 @@ namespace CWExpert
                             btnStartMR.Checked = false;
                             return;
                         }
-
+                     
                         cwDecoder.CWdecodeStart();
 
                         int runButton = 0;
@@ -984,35 +986,19 @@ namespace CWExpert
             }
         }
 
-  
-        private void chkSWL_CheckedChanged(object sender, EventArgs e)
+        private void CWExpert_Load(object sender, EventArgs e)
         {
-            if (cwDecoder.rx_only)
-                cwDecoder.rx_only = false;
-            else
-                cwDecoder.rx_only = true;
-
-            Debug.WriteLine("SWL " + cwDecoder.rx_only);
-        }
-
-        private void button4_Click(object sender, EventArgs e)
-        {
-            Debug.WriteLine("Btn4? " + cwDecoder.rx_only);
+            // Initialization code here if needed
         }
 
         private void txtChannel2_TextChanged(object sender, EventArgs e)
         {
-
+            // Handle txtChannel2 text changed event
         }
 
         private void txtChannel3_TextChanged(object sender, EventArgs e)
         {
-
-        }
-
-        private void CWExpert_Load(object sender, EventArgs e)
-        {
-
+            // Handle txtChannel3 text changed event
         }
     }
 }

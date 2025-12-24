@@ -10,7 +10,7 @@
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
@@ -45,6 +45,7 @@ namespace CWExpert
         public bool hamming = false;
         public bool medijan = false;
         public bool rx_only = false;
+        public bool swl = true;
         public bool once = true;
         public int activech, donja, gornja;
         public int moni = 24;
@@ -77,7 +78,7 @@ namespace CWExpert
         public string mycall = new string(' ', 14);
         public string morsealpha = new string(' ', 28);
         public string morsedigit = new string(' ', 30);
-        public string[] scp = new string[44096];
+        public string[] scp = new string[50315];
         public string[] output = new string[FFTlen];
         public string[] calls = new string[FFTlen];
         public string[] rprts = new string[FFTlen];
@@ -429,6 +430,27 @@ namespace CWExpert
         }
 
 
+        // Call DXLogHelper to send callsign to DXLog (SWL mode: only HISCL, no RPRT)
+        public void HisCall(string call)
+        {
+            if (MainForm.InvokeRequired)
+                MainForm.Invoke(new MethodInvoker(delegate { DXLogHelper.HISCL(call); }));
+            else
+                DXLogHelper.HISCL(call);
+        }
+
+        public void DXLRaport(string rst)
+        {
+            DXLogHelper.RPRT(rst);
+        }
+
+  	public void FXcommand(string Fkey)
+        {
+            DXLogHelper.FXTX(Fkey);
+        }
+
+
+
         private void SCP_Load()
         {
             int counter = 0;
@@ -446,6 +468,7 @@ namespace CWExpert
             }
             file.Close();
             Array.Sort(scp);
+           
             Debug.WriteLine("SCP " + counter.ToString());
         }
 
@@ -751,16 +774,8 @@ namespace CWExpert
 
         private bool IsRprt(string s)
         {
-            rst = "599";
-
-            if (s.Contains("559"))
-                rst = "559";
-            else if (s.Contains("569"))
-                rst = "569";
-            else if (s.Contains("579"))
-                rst = "579";
-            else if (s.Contains("589"))
-                rst = "589";
+            string[] validRst = { "589", "579", "569", "559" };
+            rst = Array.Find(validRst, r => s.Contains(r)) ?? "599";
 
             int i = s.IndexOf(rst);
 
@@ -786,8 +801,9 @@ namespace CWExpert
                 }
             }
 
+            
             if (i >= 0)
-                rip = true;
+               rip = true;
 
             int j = s.Length;
 
@@ -1107,14 +1123,15 @@ namespace CWExpert
 
         private void cqcqcq()
         {
-            tx_timer = dots("CQ ") + dots(mycall) + dots(" TEST");
-            MainForm.Invoke(new CrossThreadCallback(CrossThreadCommand), "Send CALL", "");
-            //            MainForm.Invoke(new CrossThreadCallback(CrossThreadCommand), "Send F1", "");
-            Debug.Write(" CQ " + tx_timer.ToString());
+            if (!rx_only)
+            {
+                tx_timer = dots("CQ ") + dots(mycall) + dots(" TEST");
+                MainForm.Invoke(new CrossThreadCallback(CrossThreadCommand), "Send CALL", "");
+                Debug.Write(" CQ " + tx_timer.ToString());
+            }
             repeat = false;
             qso = false;
             rip = false;
-            //           activech = 0;
         }
 
         private void Boundaries()
@@ -1165,7 +1182,7 @@ namespace CWExpert
                     freq = z;
                     rf = true;
                     rst = rprts[z].Substring(0, 3);
-                    report = rprts[z].Substring(3, rprts[z].Length - 3);
+                    report = rprts[z].Substring(3, rprts[z].Length - 3);  // 9A DX
                     max = s2nr[z];
                 }
             }
@@ -1197,6 +1214,7 @@ namespace CWExpert
         public void SendReport()
         {
             //            tx_timer = f2len();
+          
             MainForm.Invoke(new CrossThreadCallback(CrossThreadCommand), "Send F2", "");
             Debug.Write(" Rprt " + tx_timer.ToString());
         }
@@ -1219,24 +1237,37 @@ namespace CWExpert
             call_sent = call;
             calls[activech] = String.Empty;
             enable[activech] = false;
-            tx_timer = dots(call) + f2len();  //ESM
-            MainForm.Invoke(new CrossThreadCallback(CrossThreadCommand), "Send CALL", call);
-            MainForm.Invoke(new CrossThreadCallback(CrossThreadCommand), "Send RST", rst);
+
+            if (!rx_only)
+            {
+                tx_timer = dots(call) + f2len();
+                MainForm.Invoke(new CrossThreadCallback(CrossThreadCommand), "Send CALL", call);
+                MainForm.Invoke(new CrossThreadCallback(CrossThreadCommand), "Send RST", rst);
+                Debug.Write(activech.ToString() + " Call " + tx_timer.ToString());
+            }
 
             MainForm.Invoke(new CrossThreadSetText(SetText), "Set text", activech, prag[activech] / Noise[activech], call);
 
-            Debug.Write(activech.ToString() + " Call " + tx_timer.ToString());
+            // Send callsign to DXLog (always, even in SWL mode)
+            HisCall(call);
         }
 
         public void SendTU()
-        {
+        {   
             rprts[activech] = String.Empty;
             enable[activech] = false;
-            //            if (!rst.Equals("599"))
-            MainForm.Invoke(new CrossThreadCallback(CrossThreadCommand), "Send RST", rst);
-            MainForm.Invoke(new CrossThreadCallback(CrossThreadCommand), "Send NR", report);
-            serial++;
-            Debug.Write(" Log " + tx_timer.ToString());
+
+            if (!rx_only)
+            {
+                MainForm.Invoke(new CrossThreadCallback(CrossThreadCommand), "Send RST", rst);
+                MainForm.Invoke(new CrossThreadCallback(CrossThreadCommand), "Send NR", report);
+                serial++;
+                Debug.Write(" Log " + tx_timer.ToString());
+
+                if (swl)
+                    DXLogHelper.RPRT(report);
+            }
+            // SWL mode: send report to DXLog
         }
 
 
@@ -1252,12 +1283,15 @@ namespace CWExpert
 
                 if (!qso)
                 {
+                    /*
                     if (report_rcvd && (freq == activech))
                     {
                         tx_timer = dots("TU");
                         SendTU();
                     }
-                    else if (any_call)
+                    else 
+                    */
+                    if (any_call)
                     {
                         tx_timer = dots(call) + f2len();
                         SendCall();
@@ -1268,7 +1302,7 @@ namespace CWExpert
                     else
                     {
                         if (Silence() && (rx_timer % (ponovi / 4) == 0))
-                            cqcqcq();
+                            cqcqcq(); // MMM
                     }
 
                 }
@@ -1280,54 +1314,47 @@ namespace CWExpert
                         tx_timer = f2len();
                         SendReport();
                     }
-                    else
+                    else if (report_rcvd)
                     {
-                        if (any_call)
+                        if (tx_timer == ponovi) tx_timer = dots("TU");
+                        SendTU();
+                        rip = false;
+                        qso = false;
+                        repeat = false;
+                    }
+                    else if (any_call)
+                    {
+                        if (call_sent.Equals(call) || (!call_sent.Contains(call) && !regex_check(call)))
                         {
-                            if (call_sent.Equals(call) || (!call_sent.Contains(call) && !regex_check(call)))
+                            tx_timer = dots(call);
+                            SendCall();
+                            if (!report_rcvd)
                             {
-                                tx_timer = dots(call);
-                                SendCall();
-                                if (!report_rcvd)
-                                {
-                                    tx_timer += f2len();
-                                    SendReport();
-                                    repeat = true;
-                                }
-                                else
-                                    tx_timer += dots(" TU");
+                                tx_timer += f2len();
+                                SendReport();
+                                repeat = true;
                             }
-                            else if (report_rcvd)
-                                tx_timer = dots(" TU");
-                        }
-                        else if (Silence() && (rx_timer % (ponovi / 4) == 0))
-                        {
-                            if (repeat && !rip)
-                            {
-                                SendExch();
-                                repeat = false;
-                            }
-                            else if (rip)
-                            {
-                                rip = false;
-                                SendQuest();
-                            }
-                            else if (!report_rcvd)
-                                qso = false;
-                        }
 
-                        if (report_rcvd)
+                        }
+                    }
+                    else if (Silence() && (rx_timer % (ponovi / 4) == 0))
+                    {
+                        if (repeat && !rip)
                         {
-                            if (tx_timer == ponovi) tx_timer = dots("TU");
-                            SendTU();
+                            SendExch();
+                            repeat = false;
+                        }
+                        else if (rip)
+                        {
                             rip = false;
+                            SendQuest();
+                        }
+                        else if (!report_rcvd)
                             qso = false;
-                            repeat = false;                            
-                       }
                     }
                 }
             }
-
+            
             catch (Exception ex)
             {
                 MessageBox.Show(ex.ToString());
@@ -1335,6 +1362,3 @@ namespace CWExpert
         }
     }
 }
-
-
-
