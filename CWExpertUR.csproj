@@ -59,13 +59,14 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup>
-    <ManifestCertificateThumbprint>AE62ED3B27FA7D61CBE9C4B289263FE587BA3916</ManifestCertificateThumbprint>
+    <ManifestCertificateThumbprint>161118FACB3B933DC27ABDF4794EE9A853C62C1D</ManifestCertificateThumbprint>
   </PropertyGroup>
   <PropertyGroup>
-    <ManifestKeyFile>CWExpert_1_TemporaryKey.pfx</ManifestKeyFile>
+    <ManifestKeyFile>
+    </ManifestKeyFile>
   </PropertyGroup>
   <PropertyGroup>
-    <GenerateManifests>true</GenerateManifests>
+    <GenerateManifests>false</GenerateManifests>
   </PropertyGroup>
   <PropertyGroup>
     <SignManifests>true</SignManifests>
@@ -93,6 +94,9 @@
   <PropertyGroup>
     <TargetZone>LocalIntranet</TargetZone>
   </PropertyGroup>
+  <PropertyGroup>
+    <SignAssembly>false</SignAssembly>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Data" />
@@ -114,11 +118,13 @@
       <DependentUpon>CWExpert.cs</DependentUpon>
     </Compile>
     <Compile Include="DataBase.cs" />
+    <Compile Include="DXLogHelper.cs" />
     <Compile Include="HighPerformanceTimer.cs" />
     <Compile Include="MessageHelper.cs" />
     <Compile Include="PortAudio.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="TestAudioValidation.cs" />
     <EmbeddedResource Include="CWExpert.resx">
       <DependentUpon>CWExpert.cs</DependentUpon>
       <SubType>Designer</SubType>
@@ -138,7 +144,6 @@
       <DesignTime>True</DesignTime>
     </Compile>
     <None Include="app.config" />
-    <None Include="CWExpert_1_TemporaryKey.pfx" />
     <None Include="CWExpert_TemporaryKey.pfx" />
     <None Include="Properties\app.manifest" />
     <None Include="Properties\Settings.settings">
