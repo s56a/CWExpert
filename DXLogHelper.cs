@@ -40,6 +40,7 @@ namespace CWExpert
                 }
 
                 _hwnd = IntPtr.Zero;
+                Boolean raem = false;
 
                 foreach (Process p in Process.GetProcesses())
                 {
@@ -70,6 +71,8 @@ namespace CWExpert
                         {
                             _hwnd = p.MainWindowHandle;
                             Debug.WriteLine("DXLogHelper: Found DXLog.net - " + p.MainWindowTitle);
+                            if (p.MainWindowTitle.Contains("RAEM"))
+                                raem = true;
                             break;
                         }
                     }

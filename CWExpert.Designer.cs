@@ -252,7 +252,7 @@
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(152, 16);
             this.label1.TabIndex = 21;
-            this.label1.Text = "S56A - YT7PWR - DL7NX";
+            this.label1.Text = "S56A - DL7NX - GitHub";
             // 
             // txtChannel4
             // 

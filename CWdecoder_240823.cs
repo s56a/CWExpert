@@ -30,7 +30,7 @@ using System.Text.RegularExpressions;
 using System.Runtime.CompilerServices;
 
 namespace CWExpert
-{
+{ 
     public class CWDecode
     {
         #region variable
@@ -46,6 +46,7 @@ namespace CWExpert
         public bool medijan = false;
         public bool rx_only = false;
         public bool swl = true;
+        public bool raem = false;
         public bool once = true;
         public int activech, donja, gornja;
         public int moni = 24;
@@ -73,6 +74,7 @@ namespace CWExpert
         public int serial = 0;
         public string rst = new string(' ', 3);
         public string report = new string(' ', 4);
+        public string grid = new string(' ', 8);
         public string call_sent = new string(' ', 14);
         public string call = new string(' ', 14);
         public string mycall = new string(' ', 14);
@@ -125,7 +127,7 @@ namespace CWExpert
             {
                 MainForm = mainForm;
                 audio_buffer = new ushort[Audio.BlockSize * 2];
-                //                average_buffer = new double[Audio.BlockSize * 2];
+                // average_buffer = new double[Audio.BlockSize * 2];
                 thd_txt = new double[FFTlen];
                 AudioEvent = new AutoResetEvent(false);
                 once = true;
@@ -287,7 +289,7 @@ namespace CWExpert
                     if (once)
                     {
                         Channel();
-                        //                        Debug.WriteLine(rx_only.ToString());
+                        // Debug.WriteLine(rx_only.ToString());
                     }
                     else if (transmit)
                         TRtiming();
@@ -373,14 +375,14 @@ namespace CWExpert
 
                 ovrlp = F2L / wndw;
                 nofs = Audio.BlockSize / wndw; // number of overlaped segments
-                dotmin = (int)Math.Truncate(1.2 * rate / (40 * wndw));
-                aver = (int)Math.Round(1.2 * 2 * rate / (36 * wndw));
+                dotmin = (int)Math.Round(1.2 * rate / (36 * wndw));
+                aver = (int)Math.Round(1.2 * 2 * rate / (27 * wndw));
                 morsealpha = "ETIANMSURWDKGOHVF*L*PJBXCYZQ";
                 morsedigit = "54*3***2*******16*/*****7***8*90";
 
                 for (n = 0; n < FFTlen; n++)
                 {
-                    prag[n] = thld;
+                    prag[n] = 2 * thld;
                     Noise[n] = thld;
                     temp[n] = 0;
                     ave[n] = aver;
@@ -570,8 +572,7 @@ namespace CWExpert
                         {
                             keyes[z] = key;
                             tim[z] = n + ctr;
-                            if (key && t > dotmin && t < ave[z])
-                                ave[z] = t + ave[z] / 2;
+                        
                             if (!key)
                             {
                                 if (t > ave[z]) { sum[z]++; }
@@ -595,7 +596,7 @@ namespace CWExpert
                             {
                                 if (rx_only)
                                 {
-                                    Debug.Write(z.ToString() + " " + output[z]);
+                                    Debug.Write(z.ToString() + output[z]);
                                     output[z] = string.Empty;
                                 }
                                 else if (output[z].Length < 3)
@@ -752,9 +753,14 @@ namespace CWExpert
 
                 for (n = bwl; n <= bwh; n++)
                 {
-                    prag[n] = (prag[n] + signal[n - 1] + signal[n] + signal[n + 1]) / 4;
-                    if (prag[n] < Noise[n])
-                        prag[n] = Noise[n];
+                    prag[n] = (4 * prag[n] + 2 * signal[n] + signal[n - 1] + signal[n + 1]) / 8;
+                    if (prag[n] < 2 * Noise[n])
+                        prag[n] = 2 * Noise[n];
+
+                    // double v = signal[n] / Noise[n];
+                    //if (v > s2nr[n])
+                    //    s2nr[n] = v;
+
                 }
             }
             catch (Exception ex)
@@ -801,26 +807,65 @@ namespace CWExpert
                 }
             }
 
-            
             if (i >= 0)
                rip = true;
 
             int j = s.Length;
+            string remainder = "";
 
             if (i < 0)
-                report = s;
+                remainder = s;
             else if (j > (i + 3))
             {
-                report = s.Substring((i + 3), j - i - 3);
-                if (report.Length > 3)
-                    report = report.Substring(0, 3);
+                remainder = s.Substring((i + 3), j - i - 3);
             }
-            else report = s;
+
+            grid = "";
+            
+            if (raem && remainder.Length > 3)
+            {
+                string gridPart = ExtractGrid(remainder);
+                if (gridPart.Length > 0)
+                {
+                    grid = gridPart;
+                    remainder = remainder.Replace(gridPart, "").Trim();
+                }
+            }
+            
+            if (remainder.Length > 3)
+                remainder = remainder.Substring(0, 3);
+
+            report = remainder;
 
             if (report.Length > 1 && !report[0].Equals('5'))
                 return IsNmbr(report);
             else
                 return false;
+        }
+
+        private string ExtractGrid(string s)
+        {
+            Regex gridRegex = new Regex(@"(\d{2}[NS]\d{2,3}[EOW])", RegexOptions.IgnoreCase);
+            Match match = gridRegex.Match(s);
+            
+            if (match.Success)
+            {
+                string gridStr = match.Value.ToUpper();
+                
+                int lat = int.Parse(gridStr.Substring(0, 2));
+                char nsDir = gridStr[2];
+                
+                int lonEndIdx = gridStr.IndexOfAny(new char[] { 'E', 'O', 'W' });
+                int lon = int.Parse(gridStr.Substring(3, lonEndIdx - 3));
+                char ewDir = gridStr[lonEndIdx];
+                
+                if (lat >= 0 && lat <= 90 && lon >= 0 && lon <= 180)
+                {
+                    return gridStr;
+                }
+            }
+            
+            return "";
         }
 
 
@@ -832,7 +877,7 @@ namespace CWExpert
 
             if (rt)
             {
-                if (nr > 300 || nr == 0)
+                if (nr > 10000 || nr == 0)
                     rt = false;
             }
             return rt;
@@ -845,18 +890,25 @@ namespace CWExpert
 
             if (stev.StartsWith("R"))
                 stev = stev.Remove(0, 1);
+                
+            if (stev.StartsWith("TU"))
+                stev = stev.Remove(0, 2);
+                
+            if (stev.StartsWith("5NN"))
+                stev = stev.Remove(0, 3);
+            else if (stev.StartsWith("ENN"))
+                stev = stev.Remove(0, 3);
+            else if (stev.StartsWith("NN"))
+                stev = stev.Remove(0, 2);
+            else if (stev.StartsWith("NTT"))
+                stev = stev.Remove(0, 1);
 
+            stev = stev.Replace("E", "5");
             stev = stev.Replace("N", "9");
             stev = stev.Replace("O", "0");
             stev = stev.Replace("T", "0");
             stev = stev.Replace("A", "1");
-            /*
-                        while (stev != "" && !char.IsDigit(stev[0]))
-                            stev = stev.Remove(0, 1);
 
-                        while (stev != "" && !char.IsDigit(stev[stev.Length-1]))
-                            stev = stev.Remove(stev.Length-1, 1);
-            */
             if (stev.Length == 12 && Doubled(stev))
                 stev = stev.Substring(0, 6);
 
@@ -970,9 +1022,9 @@ namespace CWExpert
             {
                 if (output[z].Contains(" "))
                 {
-                    double v = 0.0;
-                    if (valid[z] == true) { v = (double)prag[z] / Noise[z]; }
-                    MainForm.Invoke(new CrossThreadSetText(SetText), "Set text", z, v, output[z]);
+                    // double v = 0.0;
+                    s2nr[z] = prag[z] / Noise[z]; 
+                    MainForm.Invoke(new CrossThreadSetText(SetText), "Set text", z, s2nr[z], output[z]);
                     if (output[z].Contains("R?") || output[z].Contains("AGN"))
                         nr_agn = true;
                     // else if (output[z].Contains("CQCQ") || output[z].Contains("TEST") || output[z].Contains("QRL?"))
@@ -981,22 +1033,31 @@ namespace CWExpert
                     // crc = true;
                     else if (valid[z] && output[z].Length > 3)
                     {
-                        s2nr[z] = v;  // (double)prag[z] / Noise[z];
+                        // s2nr[z] = v;  // (double)prag[z] / Noise[z];
                         string mystr = output[z].Substring(0, output[z].IndexOf(" "));
 
                         int i = mystr.IndexOf("5NN");
+
+                        if (i < 0)
+                            i = mystr.IndexOf("ENN");
+                            
+                        if (i < 0)
+                            i = mystr.IndexOf("NN");
+                            
+                        if (i < 0)
+                            i = mystr.IndexOf("NTT");
 
                         if (i >= 3)
                         {
                             if (Call_Filter(mystr.Substring(0, i)))
                                 calls[z] = call;
                             if (Report_Filter(mystr.Substring(i, mystr.Length - i)))
-                                rprts[z] = rst + report;
+                                rprts[z] = rst + report + (grid.Length > 0 ? " " + grid : "");
                         }
                         else
                         {
                             if (Report_Filter(mystr))
-                                rprts[z] = rst + report;
+                                rprts[z] = rst + report + (grid.Length > 0 ? " " + grid : "");
                             if (i < 0 && Call_Filter(mystr))
                                 calls[z] = call;
                         }
@@ -1043,7 +1104,7 @@ namespace CWExpert
                     tx_len += cwltr[c.CompareTo('A')];
                 else if (Char.IsDigit(c))
                     tx_len += cwnrs[c.CompareTo('0')];
-                else if (c.Equals(' '))
+                else if (c.Equals(' ')) 
                     tx_len += 4;
                 else if (c.Equals('/'))
                     tx_len += 16;
@@ -1071,24 +1132,29 @@ namespace CWExpert
                         if (prag[moni] < 2 * Noise[moni])
                         {
                             Debug.WriteLine(" No monitor? ");
-                            //                           CWdecodeStop();
                         }
                     }
                 }
 
+                // Check for end of transmission (silence)
                 for (int n = 0; n < nofs; n++)
                 {
-                    if (Mag[moni, n] > 2 * Noise[moni])
+                    if (Mag[moni,n] > 2 * Noise[moni])
                         time_out = 0;
                     else
                     {
                         time_out++;
-                        if (time_out > 2 * aver)
-                            eot = true;
+                    if (time_out > 2 * aver)  // CORRECT - waits for proper silence
+                    {
+                        eot = true;
+                        // Debug.WriteLine($" RX ch={activech} eot={eot} timeout={time_out}");
+                        time_out = 0;  // Reset for next TX cycle
                     }
                 }
+            }
 
-                if (tx_timer == 0 && eot)
+                // Switch to RX when timer expires OR extended silence detected
+                if (tx_timer == 0 && eot)  // CORRECT - both conditions required!
                 {
                     if (activech > 0)
                     {
@@ -1103,18 +1169,18 @@ namespace CWExpert
                     {
                         output[n] = String.Empty;
                         rprts[n] = String.Empty;
-                        prag[n] = Noise[n];
+                        prag[n] = 2 * Noise[n];
                         valid[n] = false;
                         ave[n] = aver;
                     }
+            
                     tx_timer = ponovi;
                     rx_timer = ponovi;
-                    Debug.WriteLine(" RX " + activech.ToString());
                     transmit = false;
+                    time_out = 0;  // Reset for next TX cycle
                     eot = false;
                 }
             }
-
             catch (Exception ex)
             {
                 MessageBox.Show(ex.ToString());
@@ -1125,7 +1191,7 @@ namespace CWExpert
         {
             if (!rx_only)
             {
-                tx_timer = dots("CQ ") + dots(mycall) + dots(" TEST");
+                tx_timer = dots(mycall) + dots(" TEST");
                 MainForm.Invoke(new CrossThreadCallback(CrossThreadCommand), "Send CALL", "");
                 Debug.Write(" CQ " + tx_timer.ToString());
             }
@@ -1150,7 +1216,7 @@ namespace CWExpert
 
         private bool CallAvail()
         {
-            double max = 0;
+            double max = 1;
             bool cf = false;
 
             Boundaries();
@@ -1170,7 +1236,7 @@ namespace CWExpert
 
         private bool RprtAvail()
         {
-            double max = 0;
+            double max = 1;
             bool rf = false;
 
             Boundaries();
@@ -1246,7 +1312,7 @@ namespace CWExpert
                 Debug.Write(activech.ToString() + " Call " + tx_timer.ToString());
             }
 
-            MainForm.Invoke(new CrossThreadSetText(SetText), "Set text", activech, prag[activech] / Noise[activech], call);
+            MainForm.Invoke(new CrossThreadSetText(SetText), "Set text", activech, prag[activech] / Noise[activech] , call);
 
             // Send callsign to DXLog (always, even in SWL mode)
             HisCall(call);
@@ -1261,9 +1327,13 @@ namespace CWExpert
             {
                 MainForm.Invoke(new CrossThreadCallback(CrossThreadCommand), "Send RST", rst);
                 MainForm.Invoke(new CrossThreadCallback(CrossThreadCommand), "Send NR", report);
-                serial++;
-                Debug.Write(" Log " + tx_timer.ToString());
-
+                
+                if (qso)
+                {
+                    serial++;
+                    Debug.Write(" Log #" + (serial - 1).ToString() + " " + tx_timer.ToString());
+                }
+                
                 if (swl)
                     DXLogHelper.RPRT(report);
             }
