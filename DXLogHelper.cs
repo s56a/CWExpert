@@ -9,6 +9,8 @@ namespace CWExpert
 
     public static class DXLogHelper
     {
+        public static bool rame = false;
+
         [DllImport("user32.dll")]
         private static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
 
@@ -31,6 +33,7 @@ namespace CWExpert
         /// </summary>
         public static IntPtr Init(bool forceRefresh = false)
         {
+
             lock (_lock)
             {
                 // Use cached handle if valid
@@ -40,7 +43,6 @@ namespace CWExpert
                 }
 
                 _hwnd = IntPtr.Zero;
-                Boolean raem = false;
 
                 foreach (Process p in Process.GetProcesses())
                 {
@@ -67,12 +69,14 @@ namespace CWExpert
                             isDXLog = true;
                         }
 
+                        
+                        
                         if (isDXLog && p.MainWindowHandle != IntPtr.Zero)
                         {
                             _hwnd = p.MainWindowHandle;
                             Debug.WriteLine("DXLogHelper: Found DXLog.net - " + p.MainWindowTitle);
                             if (p.MainWindowTitle.Contains("RAEM"))
-                                raem = true;
+                                rame = true;
                             break;
                         }
                     }

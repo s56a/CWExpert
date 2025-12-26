@@ -30,7 +30,8 @@ using System.Text.RegularExpressions;
 using System.Runtime.CompilerServices;
 
 namespace CWExpert
-{ 
+{
+    // private DXLogHelper dxlh;
     public class CWDecode
     {
         #region variable
@@ -439,6 +440,7 @@ namespace CWExpert
                 MainForm.Invoke(new MethodInvoker(delegate { DXLogHelper.HISCL(call); }));
             else
                 DXLogHelper.HISCL(call);
+            raem = DXLogHelper.rame;
         }
 
         public void DXLRaport(string rst)
